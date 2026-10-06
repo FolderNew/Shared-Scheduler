@@ -117,13 +117,17 @@ def ingest(cfg):
     run(cmd, env=env)
 
 
-def data_summary():
-    data = ROOT / "data" / "weather.parquet"
+def data_summary(cfg):
+    """One-line description of the output parquet (config key `summary_file`, optional `date_column`)."""
+    data = ROOT / cfg.get("summary_file", "data/data.parquet")
     if not data.exists():
         return ""
     import pandas as pd
     df = pd.read_parquet(data)
-    return f"{len(df)} rows, {df['date'].min():%Y-%m-%d} to {df['date'].max():%Y-%m-%d}"
+    col = cfg.get("date_column", "date")
+    if col in df.columns:
+        return f"{len(df)} rows, {df[col].min():%Y-%m-%d} to {df[col].max():%Y-%m-%d}"
+    return f"{len(df)} rows"
 
 
 def log_run(status, summary):
@@ -180,7 +184,7 @@ def main():
         run(["git", "add", "--", *cfg["publish_paths"]])
         changed = subprocess.run(["git", "diff", "--cached", "--quiet"], cwd=ROOT).returncode != 0
         status = OK_UPDATED if changed else OK_NO_CHANGE
-        if commit_and_push(cfg, branch, status, data_summary(), cfg["publish_paths"]):
+        if commit_and_push(cfg, branch, status, data_summary(cfg), cfg["publish_paths"]):
             print(f"{status}. Logged and pushed - Streamlit will pick it up.")
             return
         print(f"Push rejected (try {attempt}/{MAX_TRIES}) - resyncing and re-running ingest.")

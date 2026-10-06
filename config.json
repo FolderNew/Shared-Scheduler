@@ -1,5 +1,7 @@
 {
   "data_dir": "%USERPROFILE%\\ETG\\SoftsDatabase - Documents\\Database\\Hardmine\\A Shared Scheduler",
   "ingest_cmd": ["python", "{data_dir}\\ingest.py"],
-  "publish_paths": ["data/"]
+  "publish_paths": ["data/"],
+  "summary_file": "data/weather.parquet",
+  "date_column": "date"
 }
