@@ -1,5 +1,0 @@
-{
-  "data_dir": "%OneDrive%\Shared\raw_data",
-  "ingest_cmd": ["python", "ingest.py"],
-  "publish_paths": ["data/"]
-}
