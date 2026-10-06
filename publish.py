@@ -9,6 +9,7 @@ failed) and pushed, so the dashboard shows who ran what.
 """
 import csv
 import getpass
+import importlib.util
 import json
 import os
 import socket
@@ -84,7 +85,19 @@ def commit_and_push(cfg, branch, status, summary, paths):
     return run(["git", "push", "origin", branch], check=False).returncode == 0
 
 
+REQUIRED_LIBS = ["requests", "pandas", "pyarrow"]
+
+
+def check_libs():
+    missing = [m for m in REQUIRED_LIBS if importlib.util.find_spec(m) is None]
+    if missing:
+        sys.exit("\nMissing Python libraries: " + ", ".join(missing)
+                 + "\nInstall them once, then run publish.bat again:\n"
+                 + "    pip install " + " ".join(REQUIRED_LIBS) + "\n")
+
+
 def main():
+    check_libs()
     cfg = load_config()
     branch = git_out("rev-parse", "--abbrev-ref", "HEAD")
 
