@@ -7,6 +7,7 @@ rejected (someone else pushed first), reset to the remote, re-run ingest
 import getpass
 import json
 import os
+import socket
 import subprocess
 import sys
 from datetime import datetime
@@ -40,8 +41,25 @@ def load_config():
 
 
 def ingest(cfg):
-    env = {**os.environ, "DATA_DIR": cfg["data_dir"]}
-    run(cfg["ingest_cmd"], env=env)
+    env = {**os.environ, "DATA_DIR": cfg["data_dir"], "REPO_DIR": str(ROOT)}
+    cmd = [a.replace("{data_dir}", cfg["data_dir"]) for a in cfg["ingest_cmd"]]
+    run(cmd, env=env)
+
+
+def log_run(cfg):
+    """Append who/when/what to data/publish_log.csv (shown in the dashboard)."""
+    summary = ""
+    data = ROOT / "data" / "weather.parquet"
+    if data.exists():
+        import pandas as pd
+        df = pd.read_parquet(data)
+        summary = f"{len(df)} rows, {df['date'].min():%Y-%m-%d} to {df['date'].max():%Y-%m-%d}"
+    log = ROOT / "data" / "publish_log.csv"
+    new = not log.exists()
+    with log.open("a", encoding="utf-8", newline="") as f:
+        if new:
+            f.write("time,user,host,summary\n")
+        f.write(f"{datetime.now():%Y-%m-%d %H:%M},{getpass.getuser()},{socket.gethostname()},{summary}\n")
 
 
 def commit(cfg):
@@ -49,6 +67,8 @@ def commit(cfg):
     staged = subprocess.run(["git", "diff", "--cached", "--quiet"], cwd=ROOT)
     if staged.returncode == 0:
         return False
+    log_run(cfg)
+    run(["git", "add", "--", *cfg["publish_paths"]])
     msg = f"Data update {datetime.now():%Y-%m-%d %H:%M} by {getpass.getuser()}"
     run(["git", "commit", "-m", msg])
     return True
