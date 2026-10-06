@@ -4,6 +4,7 @@ Safe for several people: pull -> ingest -> commit -> push. If the push is
 rejected (someone else pushed first), reset to the remote, re-run ingest
 (it is idempotent) and push again.
 """
+import csv
 import getpass
 import json
 import os
@@ -57,9 +58,10 @@ def log_run(cfg):
     log = ROOT / "data" / "publish_log.csv"
     new = not log.exists()
     with log.open("a", encoding="utf-8", newline="") as f:
+        w = csv.writer(f)
         if new:
-            f.write("time,user,host,summary\n")
-        f.write(f"{datetime.now():%Y-%m-%d %H:%M},{getpass.getuser()},{socket.gethostname()},{summary}\n")
+            w.writerow(["time", "user", "host", "summary"])
+        w.writerow([f"{datetime.now():%Y-%m-%d %H:%M}", getpass.getuser(), socket.gethostname(), summary])
 
 
 def commit(cfg):
