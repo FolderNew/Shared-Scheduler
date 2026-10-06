@@ -1,5 +1,10 @@
 {
-  "data_dir": "%USERPROFILE%\ETG\SoftsDatabase - Documents\Database\Hardmine\A Shared Scheduler",
-  "ingest_cmd": ["python", "ingest.py"],
-  "publish_paths": ["data/"]
+  "data_dir": "%USERPROFILE%\\ETG\\SoftsDatabase - Documents\\Database\\Hardmine\\A Shared Scheduler",
+  "ingest_cmd": [
+    "python",
+    "ingest.py"
+  ],
+  "publish_paths": [
+    "data/"
+  ]
 }

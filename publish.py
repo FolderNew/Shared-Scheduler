@@ -29,12 +29,13 @@ def git_out(*args):
 def load_config():
     path = ROOT / "config.json"
     if not path.exists():
-        sys.exit("config.json missing - copy config.example.json to config.json and edit it.")
+        sys.exit("config.json missing from the repo folder.")
     cfg = json.loads(path.read_text(encoding="utf-8"))
     data_dir = os.path.expandvars(cfg.get("data_dir", ""))
     if not data_dir or not Path(data_dir).exists():
-        sys.exit(f"data_dir not found: '{data_dir}' - fix it in config.json.")
+        sys.exit(f"data_dir not found: '{data_dir}' - check that the OneDrive folder is synced on this PC (see config.json).")
     cfg["data_dir"] = data_dir
+    print(f"User: {getpass.getuser()}\nData dir: {data_dir}")
     return cfg
 
 
