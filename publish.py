@@ -27,9 +27,70 @@ OK_NO_CHANGE = "Success - no new data"
 FAILED = "Failed"
 
 
+class Tee:
+    """Write everything printed to the console AND to the per-user log file."""
+
+    def __init__(self, console, logfile):
+        self.console, self.logfile = console, logfile
+
+    def write(self, text):
+        self.console.write(text)
+        self.logfile.write(text)
+        self.logfile.flush()
+
+    def flush(self):
+        self.console.flush()
+        self.logfile.flush()
+
+
+def start_logging(cfg):
+    """Log this run to <data_dir>\\logs\\<username>.log (one file per person, so OneDrive never conflicts)."""
+    logdir = Path(cfg["data_dir"]) / "logs"
+    logdir.mkdir(exist_ok=True)
+    logfile = open(logdir / f"{getpass.getuser()}.log", "a", encoding="utf-8", errors="replace")
+    sys.stdout.reconfigure(errors="replace")
+    sys.stderr.reconfigure(errors="replace")
+    sys.stdout = Tee(sys.stdout, logfile)
+    sys.stderr = Tee(sys.stderr, logfile)
+    print(f"\n===== {datetime.now():%Y-%m-%d %H:%M:%S}  user={getpass.getuser()}  host={socket.gethostname()} =====")
+
+
 def run(cmd, check=True, **kw):
+    """Run a command, streaming its output through print() so it reaches the log file too."""
     print("> " + " ".join(cmd))
-    return subprocess.run(cmd, cwd=ROOT, check=check, **kw)
+    p = subprocess.Popen(cmd, cwd=ROOT, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                         text=True, encoding="utf-8", errors="replace", **kw)
+    for line in p.stdout:
+        print(line, end="")
+    rc = p.wait()
+    if check and rc:
+        raise subprocess.CalledProcessError(rc, cmd)
+    return subprocess.CompletedProcess(cmd, rc)
+
+
+def ensure_git_identity():
+    """Commits fail if git has no name/email; set a local fallback only when missing."""
+    user = getpass.getuser()
+    for key, fallback in (("user.name", user), ("user.email", f"{user}@users.noreply.github.com")):
+        current = subprocess.run(["git", "config", "--get", key], cwd=ROOT,
+                                 capture_output=True, text=True).stdout.strip()
+        if not current:
+            run(["git", "config", "--local", key, fallback])
+            print(f"git {key} was not set - using '{fallback}' for this repo.")
+
+
+def check_github_access(branch):
+    """Dry-run push: triggers the GitHub sign-in window if needed and proves we have write access."""
+    if run(["git", "push", "--dry-run", "origin", branch], check=False).returncode != 0:
+        sys.exit(
+            "\nCannot push to GitHub (FolderNew/Shared-Scheduler). Most likely:\n"
+            "  1. You are not signed in. A GitHub login window should open - sign in with YOUR GitHub account\n"
+            "     and run publish.bat again.\n"
+            "  2. Your GitHub account has no write access. Send your GitHub username to the repo owner\n"
+            "     so you can be added to the FolderNew organization / repo (Write).\n"
+            "  3. You are signed in as a different account. Open Windows Credential Manager, remove\n"
+            "     'git:https://github.com', and run again.\n"
+            "Details are in your log file: <shared folder>\\logs\\" + getpass.getuser() + ".log\n")
 
 
 def git_out(*args):
@@ -97,11 +158,14 @@ def check_libs():
 
 
 def main():
-    check_libs()
     cfg = load_config()
+    start_logging(cfg)
+    check_libs()
     branch = git_out("rev-parse", "--abbrev-ref", "HEAD")
 
+    ensure_git_identity()
     run(["git", "pull", "--rebase", "--autostash"])
+    check_github_access(branch)
     for attempt in range(1, MAX_TRIES + 1):
         try:
             ingest(cfg)
@@ -126,4 +190,16 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except SystemExit as e:
+        if e.code not in (0, None):
+            print(e.code if isinstance(e.code, str) else f"Exited with code {e.code}", file=sys.stderr)
+            print("===== FAILED =====")
+        raise SystemExit(0 if e.code in (0, None) else 1)
+    except Exception:
+        import traceback
+        traceback.print_exc()
+        print("===== FAILED =====")
+        sys.exit(1)
+    print("===== done =====")
